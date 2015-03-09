@@ -5,25 +5,25 @@ http://dev.ardupilot.com/wiki/simulation-2/setting-up-sitl-on-linux/
 
 The code in this repository includes:
 * a MORSE simulation environment with a shrunken version of MORSE's Hummer vehicle with some sensors attached.
-* a Python script that receives sensor data from the simulation in JSON format and converts it to Ardupilot's SITL format and vice-versa.
+* a Python script that receives sensor data from the simulation in JSON format and converts it to Ardupilot's SITL format and vice-versa (the bridge).
 
 # Setup
 
-MORSE is only supported on Linux. The steps of the Ardupilot SITL setup on Windows describe setting up an Ubuntu VM. So follow those instructions to get a Linux VM on windows:
+MORSE is only supported on Linux. The steps of the Ardupilot SITL setup on Windows describe setting up an Ubuntu VM. Follow those instructions to get a Linux VM on windows:
 http://dev.ardupilot.com/wiki/simulation-2/setting-up-sitl-on-windows/
 
 ## Install MORSE
 
-Installation instructions are here:
+Instructions are here:
 https://www.openrobots.org/morse/doc/stable/user/installation.html
 
-MORSE version 1.2.2 was used here.
+This simulation was last run using MORSE version 1.2.2.
 
 MORSE relies on Python3. The bridge script uses Python's new asyncio module which was introduced in Python 3.4 so use at least 3.4. Ubuntu 14.04 and Fedora 21 provide Python 3.4 so it should be no trouble.
 
 ## Install MAVProxy
 
-The JSBSim instructions use MAVProxy, so that's what's used here.
+The JSBSim instructions use MAVProxy, so that's what's used here:
 http://tridge.github.io/MAVProxy/
 
 ## Clone this repo
@@ -32,22 +32,24 @@ Clone it!
 
 ## Build APMRover2
 
-The Ardupilot APMRover2 setup is based on the JSBsim, so follow the Ardupilot instructions up to installing JSBSim.
+The Ardupilot APMRover2 setup is based on the JSBsim. Follow the Ardupilot instructions up to installing JSBSim:
 http://dev.ardupilot.com/wiki/simulation-2/setting-up-sitl-on-linux/
 
-There are some small changes in the APM code to get the range finder sensors working in simulation, so apply the patch:
+There are some small changes in the APM code to get the range finder sensors working in simulation. Apply the patch:
 ```
 cd ardupilot
 patch -p1 -i ~/src/morse-apmrover-sim/patches/ardupilot-sitl-recv-rngfnd.diff
 ```
 
-To build the APMRover2 executable (after the git clone step in the Ardupilot instructions)
+Build the APMRover2 executable:
+```
 cd APMRover2
 make sitl
+```
 
 # Running
 
-Running the simulation involves running 4 different programs in parallel. A few of these write a lot to the console so it's easier to run them in separate terminals.
+Running the simulation involves running 4 programs in parallel. A few of these write a lot to the console so it's easier to run them in separate terminals.
 
 ```
 # in term 1, start the simulator
@@ -90,8 +92,6 @@ param set RNGFND_SCALING 1
 param set RNGFND2_SCALING 1
 param set SIM_SONAR_SCALE 1
 ```
-
-Pins 2 and 3 are used because pins 0 and 1 are taken up by the SITL's downward facing sonar and airspeed sensor.
 
 It's important to use pins 2 and 3. If other pin numbers are used the simulation won't work.
 
