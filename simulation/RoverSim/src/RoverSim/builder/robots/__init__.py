@@ -1,0 +1,1 @@
+from .MiniHummer import Minihummer

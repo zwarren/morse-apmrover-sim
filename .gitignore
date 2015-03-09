@@ -1,0 +1,4 @@
+*.pyc
+*.tlog
+*.tlog.raw
+__pycache__
