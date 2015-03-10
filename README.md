@@ -69,6 +69,8 @@ cd ardupilot/APMRover2
 
 To check it's working, on the MAVProxy map window, right click and select "Fly to". You should see the car move on the map and also move in the MORSE window.
 
+There's a video of the startup and "Fly To" here: http://youtu.be/cBtWh9i94TI
+
 ## Manual Control
 
 The vehicle's throttle and steering can be set directly using the send-pwms.py in the scripts directory. The script must be provided two values in the range 1000 to 2000. The first value is the steering, the second is the throttle.
