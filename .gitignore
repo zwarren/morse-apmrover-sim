@@ -1,4 +1,5 @@
 *.pyc
 *.tlog
 *.tlog.raw
+*.swp
 __pycache__
