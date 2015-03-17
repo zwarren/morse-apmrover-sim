@@ -130,12 +130,12 @@ class BridgeMain:
         throttle_pwm = clamp(pwms[2], 1000, 2000)
         steer = (steer_pwm - 1500)/500.0*radians(self.max_steer_degrees)
         throttle = (throttle_pwm - 1500)/500.0*self.max_throttle_force
-        debug("Pilot steer %d throttle %d to MORSE %0.2f %02.f" % (
+        debug("Pilot: steer=%d throttle=%d to MORSE %0.2f, %0.2f" % (
                 pwms[0], pwms[2], steer, throttle))
         self.send_motion_message(steer, throttle, 0)
 
     def compound_connect(self):
-        info("Connected to cmpound port.")
+        info("Connected to compound port.")
 
     def compound_disconnect(self):
         info("Disconnected from compound port.")
