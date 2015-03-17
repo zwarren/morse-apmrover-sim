@@ -1,0 +1,165 @@
+diff --git a/APMrover2/createTags b/APMrover2/createTags
+old mode 100644
+new mode 100755
+diff --git a/libraries/AP_HAL_AVR_SITL/AnalogIn.cpp b/libraries/AP_HAL_AVR_SITL/AnalogIn.cpp
+index 7779154..0ecfbc9 100644
+--- a/libraries/AP_HAL_AVR_SITL/AnalogIn.cpp
++++ b/libraries/AP_HAL_AVR_SITL/AnalogIn.cpp
+@@ -39,6 +39,12 @@ float ADCSource::read_latest() {
+     case 1:
+         return _sitlState->airspeed_pin_value;
+ 
++	case 2:
++		return _sitlState->range0_pin_value;
++
++	case 3:
++		return _sitlState->range1_pin_value;
++
+     case 12:
+         return _sitlState->current_pin_value;
+ 
+diff --git a/libraries/AP_HAL_AVR_SITL/SITL_State.cpp b/libraries/AP_HAL_AVR_SITL/SITL_State.cpp
+index 43e58db..202a4c5 100644
+--- a/libraries/AP_HAL_AVR_SITL/SITL_State.cpp
++++ b/libraries/AP_HAL_AVR_SITL/SITL_State.cpp
+@@ -45,6 +45,8 @@ void print_trace() {
+ }
+ #endif
+ 
++#define PRINT_PACKETS
++
+ extern const AP_HAL::HAL& hal;
+ 
+ using namespace AVR_SITL;
+@@ -62,6 +64,8 @@ uint16_t SITL_State::sonar_pin_value;
+ uint16_t SITL_State::airspeed_pin_value;
+ uint16_t SITL_State::voltage_pin_value;
+ uint16_t SITL_State::current_pin_value;
++uint16_t SITL_State::range0_pin_value;
++uint16_t SITL_State::range1_pin_value;
+ float SITL_State::_current;
+ 
+ AP_Baro *SITL_State::_barometer;
+@@ -372,9 +376,17 @@ void SITL_State::_fdm_input(void)
+ 	struct pwm_packet {
+ 		uint16_t pwm[8];
+ 	};
++
++	struct range_packet {
++		uint32_t magic;
++		float left_range;
++		float right_range;
++	};
++
+ 	union {
+ 		struct sitl_fdm fg_pkt;
+ 		struct pwm_packet pwm_pkt;
++		struct range_packet range_pkt;
+ 	} d;
+ 
+ 	size = recv(_sitl_fd, &d, sizeof(d), MSG_DONTWAIT);
+@@ -407,6 +419,27 @@ void SITL_State::_fdm_input(void)
+         }
+ 		_update_count++;
+ 
++#ifdef PRINT_PACKETS
++		printf("SITL packet: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n",
++			_sitl->state.latitude,
++			_sitl->state.longitude,
++			_sitl->state.altitude,
++			_sitl->state.heading,
++			_sitl->state.speedN,
++			_sitl->state.speedE,
++			_sitl->state.speedD,
++			_sitl->state.xAccel,
++			_sitl->state.yAccel,
++			_sitl->state.zAccel,
++			_sitl->state.rollRate,
++			_sitl->state.pitchRate,
++			_sitl->state.yawRate,
++			_sitl->state.rollDeg,
++			_sitl->state.pitchDeg,
++			_sitl->state.yawDeg,
++			_sitl->state.airspeed);
++#endif
++
+ 		count++;
+ 		if (hal.scheduler->millis() - last_report > 1000) {
+ 			//fprintf(stdout, "SIM %u FPS\n", count);
+@@ -415,6 +448,21 @@ void SITL_State::_fdm_input(void)
+ 		}
+ 		break;
+ 
++	case sizeof(d.range_pkt):
++		if (d.range_pkt.magic != 0xef10ab20) {
++			fprintf(stderr, "invalid range packet.\n");
++			return;
++		}
++
++#ifdef PRINT_PACKETS
++		printf("Range packet: %f %f\n",
++			d.range_pkt.left_range, d.range_pkt.right_range);
++#endif
++
++		range0_pin_value = _sonar_analog_voltage(d.range_pkt.left_range);
++		range1_pin_value = _sonar_analog_voltage(d.range_pkt.right_range);
++		break;
++
+ 	case 16: {
+ 		// a packet giving the receiver PWM inputs
+ 		uint8_t i;
+diff --git a/libraries/AP_HAL_AVR_SITL/SITL_State.h b/libraries/AP_HAL_AVR_SITL/SITL_State.h
+index 816c4ca..259b787 100644
+--- a/libraries/AP_HAL_AVR_SITL/SITL_State.h
++++ b/libraries/AP_HAL_AVR_SITL/SITL_State.h
+@@ -51,6 +51,8 @@ public:
+     static uint16_t airspeed_pin_value; // pin 1
+     static uint16_t voltage_pin_value;  // pin 13
+     static uint16_t current_pin_value;  // pin 12
++    static uint16_t range0_pin_value;   // pin 2
++    static uint16_t range1_pin_value;   // pin 3
+ 
+ private:
+     void _parse_command_line(int argc, char * const argv[]);
+@@ -107,6 +109,7 @@ private:
+     static void _apply_servo_filter(float deltat);
+     static uint16_t _airspeed_sensor(float airspeed);
+     static uint16_t _ground_sonar();
++    static uint16_t _sonar_analog_voltage(float dist_m);
+     static float _gyro_drift(void);
+     static float _rand_float(void);
+     static Vector3f _rand_vec3f(void);
+diff --git a/libraries/AP_HAL_AVR_SITL/sitl_ins.cpp b/libraries/AP_HAL_AVR_SITL/sitl_ins.cpp
+index e847219..085b22a 100644
+--- a/libraries/AP_HAL_AVR_SITL/sitl_ins.cpp
++++ b/libraries/AP_HAL_AVR_SITL/sitl_ins.cpp
+@@ -88,6 +88,29 @@ uint16_t SITL_State::_ground_sonar(void)
+ }
+ 
+ /*
++ * Convert a distance in meters to the equivalent value
++ * that would be returned by reading the ADC pin.
++ *
++ * Based on _ground_sonar() but intended for use with
++ * the range finding sonars for collision detection on
++ * the rover.
++ */
++uint16_t SITL_State::_sonar_analog_voltage(float dist_m)
++{
++    dist_m += _sitl->sonar_noise * _rand_float();
++
++    // scale in meters/volt
++    float voltage = dist_m / _sitl->sonar_scale;
++    voltage = constrain_float(voltage, 0, 5.0f);
++
++    if (_sitl->sonar_glitch >= (_rand_float() + 1.0f)/2.0f) {
++        voltage = 5.0f;
++    }
++
++    return 1023*(voltage / 5.0f);
++}
++
++/*
+   setup the INS input channels with new input
+ 
+   Note that this uses roll, pitch and yaw only as inputs. The
