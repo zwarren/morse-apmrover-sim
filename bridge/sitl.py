@@ -92,6 +92,6 @@ class SITL_Sensors(object):
         l = []
         for name in SITL_Fields:
             l.append(name + ':' + str(getattr(self, name)))
-        return '\n'.join(l)
+        return ', '.join(l)
 
 
