@@ -6,6 +6,7 @@ import asyncio
 import logging
 import struct
 import array
+import argparse
 
 from logging import error, warning, info, debug
 from math import radians
@@ -123,12 +124,14 @@ class BridgeMain:
         #else:
         #    warning('Cannot send motion message without connection to motion controller.')
 
+    # receive the control message from the pilot and send it to the simulator.
     def pilot_message(self, pwms):  
         steer_pwm = clamp(pwms[0], 1000, 2000)
         throttle_pwm = clamp(pwms[2], 1000, 2000)
         steer = (steer_pwm - 1500)/500.0*radians(self.max_steer_degrees)
         throttle = (throttle_pwm - 1500)/500.0*self.max_throttle_force
-        #print("Pilot steer %d throttle %d to MORSE %0.2f %02.f" % (pwms[0], pwms[2], steer, throttle))
+        debug("Pilot steer %d throttle %d to MORSE %0.2f %02.f" % (
+                pwms[0], pwms[2], steer, throttle))
         self.send_motion_message(steer, throttle, 0)
 
     def compound_connect(self):
@@ -140,9 +143,9 @@ class BridgeMain:
     def compound_message(self, line):
         try:
             obj = json.loads(line)
-            #print('Compound:' + str(obj))
+            debug('Compound message: ' + str(obj))
             self.sensors.update_compound(obj)
-            #print(self.sensors)
+            debug('SITL sensors: ' + str(self.sensors))
             self.pilot.send(self.sensors.pack())
         except ValueError as err:
             warning("Invalid compound message:" + str(err))
@@ -156,7 +159,7 @@ class BridgeMain:
     def range_message(self, line):
         try:
             obj = json.loads(line)
-            #print(obj)
+            debug('Range message: ' + str(obj))
         except ValueError as err:
             error('Invalid range message:' + str(err))
             return
@@ -170,12 +173,13 @@ class BridgeMain:
     def compound_range_message(self, line):
         try:
             obj = json.loads(line)
-            #print(obj)
+            debug('Compound range message: ' + str(obj))
             left_range = min(obj['robot.range_left']['range_list'])
             right_range = min(obj['robot.range_right']['range_list'])
+            debug('Ranges: %f, %f' % (left_range, right_range))
             self.pilot.send(struct.pack('Iff', 0xef10ab20,
                                         left_range, right_range))
-            #print('Ranges: %f, %f' % (left_range, right_range))
+
         except ValueError as err:
             error('Invalid range message:' + str(err))
             return
@@ -189,12 +193,25 @@ class BridgeMain:
     def odometry_message(self, line):
         try:
             obj = json.loads(line)
-            #print('Odometry:' + str(obj))
+            debug('Odometry message:' + str(obj))
         except ValueError as err:
             warning('Invalid odometry message:' + str(err))
 
+loglevels = {
+    'debug': logging.DEBUG,
+    'info': logging.INFO,
+    'warn': logging.WARNING,
+    'error': logging.ERROR
+    }
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.WARNING)
+    argparser = argparse.ArgumentParser(
+                    description='Bridge script for connecting MORSE simulator with APMRover2.')
+    argparser.add_argument('--loglevel', choices=loglevels.keys(), default='warn')
+
+    args = argparser.parse_args()
+
+    logging.basicConfig(level=loglevels[args.loglevel])
 
     main = BridgeMain()
 
